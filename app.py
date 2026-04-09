@@ -56,7 +56,7 @@ if st.button("実行"):
             if break_df.loc[s, h] == 1:
                 schedule.loc[s, h] = 0
 
-    # ② 人数調整（初期）
+    # ② 初期人数合わせ
     for h in hours:
         while schedule[h].sum() < required[h]:
             candidates = [
@@ -70,7 +70,7 @@ if st.button("実行"):
             s = random.choice(candidates)
             schedule.loc[s, h] = 1
 
-    # ③ 単発削除
+    # ③ 単発削除（1回目）
     for s in staff_names:
         h = 0
         while h < 24:
@@ -88,10 +88,9 @@ if st.button("実行"):
     for s in staff_names:
         for tr in target_ranges:
             if all(schedule.loc[s, h] == 1 for h in tr):
-                schedule.loc[s, random.choice(tr)] = 
+                schedule.loc[s, random.choice(tr)] = 0
 
-
-    # ⑤ 最終強制人数合わせ（連続優先版）
+    # ⑤ 最終人数合わせ（連続優先版）
     for h in hours:
         while schedule[h].sum() < required[h]:
 
@@ -109,17 +108,18 @@ if st.button("実行"):
                     and schedule.loc[s].sum() < max_hours
                 ):
 
-                    # 👇 前後とつながるなら最優先
+                    # 前とつながる
                     if h > 0 and schedule.loc[s, h-1] == 1:
                         schedule.loc[s, h] = 1
                         added = True
 
+                    # 後ろとつながる
                     elif h < 23 and schedule.loc[s, h+1] == 1:
-                         schedule.loc[s, h] = 1
-                         added = True
+                        schedule.loc[s, h] = 1
+                        added = True
 
-                    # 👇 どうしても無理なら2時間セット
-                    elif h < 23 and schedule.loc[s, h+1] == 0:
+                    # 2時間セットで入れる
+                    elif h < 23:
                         schedule.loc[s, h] = 1
                         schedule.loc[s, h+1] = 1
                         added = True
@@ -129,7 +129,20 @@ if st.button("実行"):
 
             if not added:
                 break
-            
+
+    # ⑥ 単発削除（最終）
+    for s in staff_names:
+        h = 0
+        while h < 24:
+            if schedule.loc[s, h] == 1:
+                start = h
+                while h < 24 and schedule.loc[s, h] == 1:
+                    h += 1
+                if h - start == 1:
+                    schedule.loc[s, start] = 0
+            else:
+                h += 1
+
     # ---------------------------
     # 表示
     # ---------------------------
