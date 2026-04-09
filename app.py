@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 
-st.title("シフト自動作成アプリ（完成版・人数保証）")
+st.title("シフト自動作成アプリ（完成版・安定）")
 
 # ---------------------------
 # スタッフ人数
@@ -56,24 +56,19 @@ if st.button("実行"):
             if break_df.loc[s, h] == 1:
                 schedule.loc[s, h] = 0
 
-    # ② 人数調整（1回目）
+    # ② 人数調整（初期）
     for h in hours:
-        current = schedule[h].sum()
-        need = required[h]
-
-        if current < need:
+        while schedule[h].sum() < required[h]:
             candidates = [
                 s for s in staff_names
                 if schedule.loc[s, h] == 0
                 and break_df.loc[s, h] == 0
                 and schedule.loc[s].sum() < max_hours
             ]
-            random.shuffle(candidates)
-            for s in candidates:
-                if current >= need:
-                    break
-                schedule.loc[s, h] = 1
-                current += 1
+            if not candidates:
+                break
+            s = random.choice(candidates)
+            schedule.loc[s, h] = 1
 
     # ③ 単発削除
     for s in staff_names:
@@ -88,39 +83,20 @@ if st.button("実行"):
             else:
                 h += 1
 
-    # ④ 指定時間帯に必ず休憩
-    target_ranges = [
-        [11, 12, 13],
-        [17, 18, 19, 20]
-    ]
-
+    # ④ 指定時間帯に休憩
+    target_ranges = [[11,12,13],[17,18,19,20]]
     for s in staff_names:
         for tr in target_ranges:
             if all(schedule.loc[s, h] == 1 for h in tr):
                 schedule.loc[s, random.choice(tr)] = 0
 
-    # ⑤ 再単発削除
-    for s in staff_names:
-        h = 0
-        while h < 24:
-            if schedule.loc[s, h] == 1:
-                start = h
-                while h < 24 and schedule.loc[s, h] == 1:
-                    h += 1
-                if h - start == 1:
-                    schedule.loc[s, start] = 0
-            else:
-                h += 1
-
-    # ⑥ 最終強制人数合わせ（最重要）
+    # ⑤ 最終強制人数合わせ（最重要）
     for h in hours:
         while schedule[h].sum() < required[h]:
-
             candidates = sorted(
                 staff_names,
                 key=lambda s: schedule.loc[s].sum()
             )
-
             for s in candidates:
                 if (
                     schedule.loc[s, h] == 0
