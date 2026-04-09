@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 
-st.title("シフト自動作成アプリ（完成版）")
+st.title("シフト自動作成アプリ（完成版・人数保証）")
 
 # ---------------------------
 # スタッフ人数
@@ -75,16 +75,7 @@ if st.button("実行"):
                 schedule.loc[s, h] = 1
                 current += 1
 
-        elif current > need:
-            candidates = [s for s in staff_names if schedule.loc[s, h] == 1]
-            random.shuffle(candidates)
-            for s in candidates:
-                if current <= need:
-                    break
-                schedule.loc[s, h] = 0
-                current -= 1
-
-    # ③ 単発削除（1回目）
+    # ③ 単発削除
     for s in staff_names:
         h = 0
         while h < 24:
@@ -97,35 +88,7 @@ if st.button("実行"):
             else:
                 h += 1
 
-    # ④ 人数調整（2回目）
-    for h in hours:
-        current = schedule[h].sum()
-        need = required[h]
-
-        if current < need:
-            candidates = [
-                s for s in staff_names
-                if schedule.loc[s, h] == 0
-                and break_df.loc[s, h] == 0
-                and schedule.loc[s].sum() < max_hours
-            ]
-            random.shuffle(candidates)
-            for s in candidates:
-                if current >= need:
-                    break
-                schedule.loc[s, h] = 1
-                current += 1
-
-        elif current > need:
-            candidates = [s for s in staff_names if schedule.loc[s, h] == 1]
-            random.shuffle(candidates)
-            for s in candidates:
-                if current <= need:
-                    break
-                schedule.loc[s, h] = 0
-                current -= 1
-
-    # ⑤ 指定時間帯に必ず休憩
+    # ④ 指定時間帯に必ず休憩
     target_ranges = [
         [11, 12, 13],
         [17, 18, 19, 20]
@@ -134,10 +97,9 @@ if st.button("実行"):
     for s in staff_names:
         for tr in target_ranges:
             if all(schedule.loc[s, h] == 1 for h in tr):
-                h = random.choice(tr)
-                schedule.loc[s, h] = 0
+                schedule.loc[s, random.choice(tr)] = 0
 
-    # ⑥ 単発削除（2回目）
+    # ⑤ 再単発削除
     for s in staff_names:
         h = 0
         while h < 24:
@@ -150,92 +112,55 @@ if st.button("実行"):
             else:
                 h += 1
 
-    # ⑥.5 最終微調整
+    # ⑥ 最終強制人数合わせ（最重要）
     for h in hours:
-        current = schedule[h].sum()
-        need = required[h]
+        while schedule[h].sum() < required[h]:
 
-        if current < need:
-            candidates = [
-                s for s in staff_names
-                if schedule.loc[s, h] == 0
-                and break_df.loc[s, h] == 0
-                and schedule.loc[s].sum() < max_hours
-            ]
-            random.shuffle(candidates)
+            candidates = sorted(
+                staff_names,
+                key=lambda s: schedule.loc[s].sum()
+            )
 
             for s in candidates:
-                if current >= need:
+                if (
+                    schedule.loc[s, h] == 0
+                    and break_df.loc[s, h] == 0
+                    and schedule.loc[s].sum() < max_hours
+                ):
+                    schedule.loc[s, h] = 1
                     break
-
-                if h > 0 and schedule.loc[s, h-1] == 1:
-                    schedule.loc[s, h] = 1
-                    current += 1
-
-                elif h < 23 and schedule.loc[s, h+1] == 1:
-                    schedule.loc[s, h] = 1
-                    current += 1
-
-                elif h < 23:
-                    schedule.loc[s, h] = 1
-                    schedule.loc[s, h+1] = 1
-                    current += 1
-
-    # ⑥.6 最終単発削除
-    for s in staff_names:
-        h = 0
-        while h < 24:
-            if schedule.loc[s, h] == 1:
-                start = h
-                while h < 24 and schedule.loc[s, h] == 1:
-                    h += 1
-                if h - start == 1:
-                    schedule.loc[s, start] = 0
             else:
-                h += 1
-
-     # ⑦ 最終強制人数合わせ（超重要）
-     for h in hours:
-       while schedule[h].sum() < required[h]:
-
-        # 一番勤務時間が少ない人を優先
-        candidates = sorted(
-            staff_names,
-            key=lambda s: schedule.loc[s].sum()
-        )
-
-        for s in candidates:
-            if (
-                schedule.loc[s, h] == 0
-                and break_df.loc[s, h] == 0
-                and schedule.loc[s].sum() < max_hours
-            ):
-                schedule.loc[s, h] = 1
                 break
-        else:
-            # 誰も入れられないなら終了（物理的に無理）
-            break
 
     # ---------------------------
-    # 表示（←ここが全部 if の中）
+    # 表示
     # ---------------------------
 
     # 勤務時間
     st.subheader("勤務時間")
     st.dataframe(schedule.sum(axis=1).rename("勤務時間"))
 
-    # ビジュアルシフト
+    # チェック
+    st.subheader("チェック結果")
+    for h in hours:
+        assigned = schedule[h].sum()
+        need = required[h]
+
+        if assigned < need:
+            st.error(f"{h}時：人数不足（{assigned}/{need}）")
+        elif assigned > need:
+            st.warning(f"{h}時：人数超過（{assigned}/{need}）")
+
+    # ---------------------------
+    # ビジュアルシフト表
+    # ---------------------------
     st.subheader("シフト表（ビジュアル）")
 
     display_df = schedule.copy()
     display_df.columns = [f"{h:02d}" for h in hours]
-    display_df.index.name = "スタッフ"
 
     def color_map(val):
-        if val == 1:
-            return "background-color: #F6A068"
-        else:
-            return "background-color: #FFEEDB"
+        return "background-color: #F6A068" if val == 1 else "background-color: #FFEEDB"
 
     styled = display_df.style.map(color_map)
     styled = styled.format(lambda x: "")
