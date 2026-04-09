@@ -217,35 +217,35 @@ if st.button("実行"):
     if not error_flag:
         st.success("すべての時間で必要人数を満たしています")
 
-    # ⑨ 勤務時間
-    st.subheader("勤務時間")
-    st.dataframe(schedule.sum(axis=1).rename("勤務時間"))
+     ⑨ 勤務時間
+     st.subheader("勤務時間")
+     st.dataframe(schedule.sum(axis=1).rename("勤務時間"))
 
-# ---------------------------
-# シフト表（ビジュアル）
-# ---------------------------
-st.subheader("シフト表（ビジュアル）")
+     # ---------------------------
+     # シフト表（ビジュアル）
+     # ---------------------------
+     st.subheader("シフト表（ビジュアル）")
 
-display_df = schedule.copy()
-display_df.columns = [f"{h:02d}" for h in hours]
-display_df.index.name = "スタッフ"
+      display_df = schedule.copy()
+      display_df.columns = [f"{h:02d}" for h in hours]
+      display_df.index.name = "スタッフ"
 
-# 色付け
-def color_map(val):
-    if val == 1:
-        return "background-color: #F6A068"  # 勤務
-    else:
-        return "background-color: #FFEEDB"  # 休憩
+      # 色付け
+      def color_map(val):
+         if val == 1:
+             return "background-color: #F6A068"  # 勤務
+         else:
+             return "background-color: #FFEEDB"  # 休憩
 
-styled = display_df.style.map(color_map)
+     styled = display_df.style.map(color_map)
 
-# 数字非表示
-styled = styled.format(lambda x: "")
+     # 数字非表示
+     styled = styled.format(lambda x: "")
 
-# 枠＋中央寄せ
-styled = styled.set_properties(**{
-    "border": "2px solid #999",
-    "text-align": "center"
-})
+     # 枠＋中央寄せ
+     styled = styled.set_properties(**{
+         "border": "2px solid #999",
+         "text-align": "center"
+     })
 
-st.dataframe(styled, use_container_width=True)
+     st.dataframe(styled, use_container_width=True)
