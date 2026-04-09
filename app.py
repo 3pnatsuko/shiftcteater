@@ -194,6 +194,28 @@ if st.button("実行"):
             else:
                 h += 1
 
+     # ⑦ 最終強制人数合わせ（超重要）
+     for h in hours:
+       while schedule[h].sum() < required[h]:
+
+        # 一番勤務時間が少ない人を優先
+        candidates = sorted(
+            staff_names,
+            key=lambda s: schedule.loc[s].sum()
+        )
+
+        for s in candidates:
+            if (
+                schedule.loc[s, h] == 0
+                and break_df.loc[s, h] == 0
+                and schedule.loc[s].sum() < max_hours
+            ):
+                schedule.loc[s, h] = 1
+                break
+        else:
+            # 誰も入れられないなら終了（物理的に無理）
+            break
+
     # ---------------------------
     # 表示（←ここが全部 if の中）
     # ---------------------------
