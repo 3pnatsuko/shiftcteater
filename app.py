@@ -88,26 +88,48 @@ if st.button("実行"):
     for s in staff_names:
         for tr in target_ranges:
             if all(schedule.loc[s, h] == 1 for h in tr):
-                schedule.loc[s, random.choice(tr)] = 0
+                schedule.loc[s, random.choice(tr)] = 
 
-    # ⑤ 最終強制人数合わせ（最重要）
+
+    # ⑤ 最終強制人数合わせ（連続優先版）
     for h in hours:
         while schedule[h].sum() < required[h]:
+
             candidates = sorted(
                 staff_names,
                 key=lambda s: schedule.loc[s].sum()
             )
+
+            added = False
+
             for s in candidates:
                 if (
                     schedule.loc[s, h] == 0
                     and break_df.loc[s, h] == 0
                     and schedule.loc[s].sum() < max_hours
                 ):
-                    schedule.loc[s, h] = 1
-                    break
-            else:
-                break
 
+                    # 👇 前後とつながるなら最優先
+                    if h > 0 and schedule.loc[s, h-1] == 1:
+                        schedule.loc[s, h] = 1
+                        added = True
+
+                    elif h < 23 and schedule.loc[s, h+1] == 1:
+                         schedule.loc[s, h] = 1
+                         added = True
+
+                    # 👇 どうしても無理なら2時間セット
+                    elif h < 23 and schedule.loc[s, h+1] == 0:
+                        schedule.loc[s, h] = 1
+                        schedule.loc[s, h+1] = 1
+                        added = True
+
+                    if added:
+                        break
+
+            if not added:
+                break
+            
     # ---------------------------
     # 表示
     # ---------------------------
