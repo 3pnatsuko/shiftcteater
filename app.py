@@ -1,10 +1,8 @@
-
-
 import streamlit as st
 import pandas as pd
 import random
 
-st.title("シフト自動作成アプリ（最終版）")
+st.title("シフト自動作成アプリ（完成版）")
 
 # ---------------------------
 # スタッフ人数
@@ -27,7 +25,7 @@ for h in hours:
     required[h] = st.number_input(f"{h}時", 0, num_staff, 3, key=f"req_{h}")
 
 # ---------------------------
-# 勤務希望・休憩希望（時間表示あり）
+# 勤務希望・休憩希望
 # ---------------------------
 work_df = pd.DataFrame(0, index=staff_names, columns=hours)
 break_df = pd.DataFrame(0, index=staff_names, columns=hours)
@@ -48,7 +46,6 @@ for staff in staff_names:
 # ---------------------------
 # 実行
 # ---------------------------
-
 if st.button("実行"):
 
     schedule = work_df.copy()
@@ -67,7 +64,8 @@ if st.button("実行"):
         if current < need:
             candidates = [
                 s for s in staff_names
-                if schedule.loc[s, h] == 0 and break_df.loc[s, h] == 0
+                if schedule.loc[s, h] == 0
+                and break_df.loc[s, h] == 0
                 and schedule.loc[s].sum() < max_hours
             ]
             random.shuffle(candidates)
@@ -86,7 +84,7 @@ if st.button("実行"):
                 schedule.loc[s, h] = 0
                 current -= 1
 
-    # ③ 単発禁止（1回目）
+    # ③ 単発削除（1回目）
     for s in staff_names:
         h = 0
         while h < 24:
@@ -107,7 +105,8 @@ if st.button("実行"):
         if current < need:
             candidates = [
                 s for s in staff_names
-                if schedule.loc[s, h] == 0 and break_df.loc[s, h] == 0
+                if schedule.loc[s, h] == 0
+                and break_df.loc[s, h] == 0
                 and schedule.loc[s].sum() < max_hours
             ]
             random.shuffle(candidates)
@@ -138,7 +137,7 @@ if st.button("実行"):
                 h = random.choice(tr)
                 schedule.loc[s, h] = 0
 
-        # ⑥ 最終単発除去（超重要）
+    # ⑥ 単発削除（2回目）
     for s in staff_names:
         h = 0
         while h < 24:
@@ -151,7 +150,7 @@ if st.button("実行"):
             else:
                 h += 1
 
-    # ⑥.5 最終微調整（連続で補う）
+    # ⑥.5 最終微調整
     for h in hours:
         current = schedule[h].sum()
         need = required[h]
@@ -169,22 +168,20 @@ if st.button("実行"):
                 if current >= need:
                     break
 
-                # 前後とつながる形で入れる
-                if h < 23 and schedule.loc[s, h+1] == 1:
+                if h > 0 and schedule.loc[s, h-1] == 1:
                     schedule.loc[s, h] = 1
                     current += 1
 
-                elif h > 0 and schedule.loc[s, h-1] == 1:
+                elif h < 23 and schedule.loc[s, h+1] == 1:
                     schedule.loc[s, h] = 1
                     current += 1
 
-                # どうしてもダメなら2時間セット
                 elif h < 23:
                     schedule.loc[s, h] = 1
                     schedule.loc[s, h+1] = 1
                     current += 1
 
-    # ⑥.6 再単発除去（最終仕上げ）
+    # ⑥.6 最終単発削除
     for s in staff_names:
         h = 0
         while h < 24:
@@ -197,55 +194,32 @@ if st.button("実行"):
             else:
                 h += 1
 
-    # ⑦ 列順修正
-    schedule = schedule[sorted(schedule.columns)]
+    # ---------------------------
+    # 表示（←ここが全部 if の中）
+    # ---------------------------
 
-    # ⑧ チェック
-    st.subheader("チェック結果")
+    # 勤務時間
+    st.subheader("勤務時間")
+    st.dataframe(schedule.sum(axis=1).rename("勤務時間"))
 
-    error_flag = False
-    for h in hours:
-        assigned = schedule[h].sum()
-        need = required[h]
+    # ビジュアルシフト
+    st.subheader("シフト表（ビジュアル）")
 
-        if assigned < need:
-            st.error(f"{h}時：人数不足（{assigned}/{need}）")
-            error_flag = True
-        elif assigned > need:
-            st.warning(f"{h}時：人数超過（{assigned}/{need}）")
+    display_df = schedule.copy()
+    display_df.columns = [f"{h:02d}" for h in hours]
+    display_df.index.name = "スタッフ"
 
-    if not error_flag:
-        st.success("すべての時間で必要人数を満たしています")
+    def color_map(val):
+        if val == 1:
+            return "background-color: #F6A068"
+        else:
+            return "background-color: #FFEEDB"
 
-     ⑨ 勤務時間
-     st.subheader("勤務時間")
-     st.dataframe(schedule.sum(axis=1).rename("勤務時間"))
+    styled = display_df.style.map(color_map)
+    styled = styled.format(lambda x: "")
+    styled = styled.set_properties(**{
+        "border": "2px solid #999",
+        "text-align": "center"
+    })
 
-     # ---------------------------
-     # シフト表（ビジュアル）
-     # ---------------------------
-     st.subheader("シフト表（ビジュアル）")
-
-      display_df = schedule.copy()
-      display_df.columns = [f"{h:02d}" for h in hours]
-      display_df.index.name = "スタッフ"
-
-      # 色付け
-      def color_map(val):
-         if val == 1:
-             return "background-color: #F6A068"  # 勤務
-         else:
-             return "background-color: #FFEEDB"  # 休憩
-
-     styled = display_df.style.map(color_map)
-
-     # 数字非表示
-     styled = styled.format(lambda x: "")
-
-     # 枠＋中央寄せ
-     styled = styled.set_properties(**{
-         "border": "2px solid #999",
-         "text-align": "center"
-     })
-
-     st.dataframe(styled, use_container_width=True)
+    st.dataframe(styled, use_container_width=True)
